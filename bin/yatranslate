@@ -1,0 +1,148 @@
+#!/usr/bin/env perl 
+#===============================================================================
+#
+#         FILE: YandexTest.pl
+#
+#        USAGE: ./YandexTest.pl  
+#
+#  DESCRIPTION: 
+#
+#      OPTIONS: ---
+# REQUIREMENTS: ---
+#         BUGS: ---
+#        NOTES: ---
+#       AUTHOR: Milovidov Mikhail (), milovidovwork@yandex.ru
+# ORGANIZATION: 
+#      VERSION: 1.0
+#      CREATED: 25.12.2012 16:42:51
+#     REVISION: ---
+#===============================================================================
+
+use strict;
+use warnings;
+use utf8;
+
+use Config::IniFiles;
+use Const::Fast;
+use Getopt::Long qw(:config posix_default bundling no_ignore_case permute auto_help);
+use Carp;
+use File::Touch;
+
+use Lingua::Translate::Yandex;
+
+use 5.010;
+
+our $VERSION = '0.01';
+
+const my $settings_file => "Settings.ini";
+
+const my $language_group => "Language";
+const my $language_direction => "direction";
+
+
+sub updateSettings{
+    my (%new_settings) = @_;
+    if (keys %new_settings) {
+        my %ini;
+        unless (-f $settings_file) {
+            tie %ini, 'Config::IniFiles'; 
+        } else {
+            tie %ini, 'Config::IniFiles', (-file => $settings_file);
+        }
+
+        @ini{keys %new_settings} = values %new_settings;
+
+        tied(%ini)->WriteConfig($settings_file);
+     }
+}
+
+sub getSettings {
+    my %ini;
+    if (-f $settings_file) {
+        tie %ini, 'Config::IniFiles', (-file => "$settings_file");
+    }
+    return %ini;
+}
+
+sub start {
+    my $to;
+
+    my $translator = Lingua::Translate::Yandex->new();
+    my $direction;
+
+    GetOptions("$language_direction|d:s" => \$direction, 
+               "to|t:s" => \$to,
+               "langs|l" => sub{foreach (@{$translator->getLanguages()}) {say}; exit;}, 
+               "version|v" => sub{say "$0 have version $VERSION";exit;},
+               "help|?" => sub{say Getopt::Long::HelpMessage()} 
+       );
+    my @phrases = @ARGV;
+       
+    my %settings;
+    if (defined($direction)) {
+        $settings{$language_group}{$language_direction} = $direction;  
+    }
+
+    updateSettings(%settings);
+
+    unless (defined($phrases[0]) || defined($direction)) {
+        croak "You must write phrases for translation.";
+    }
+
+    if (defined($to)) {
+        foreach (@phrases) {
+            say $translator->translate($_, $to);
+        }
+    } else {
+        %settings = getSettings();
+        $direction = $settings{$language_group}{$language_direction};
+
+        if (defined($direction)){
+            foreach (@phrases) {
+                my $text_lang = $translator->detectLanguage($_); 
+                if ($direction ~~ /$text_lang/) {
+                    $to = $direction;
+                    $to =~ s/\W*($text_lang)\W*//;
+                    my $result = $translator->translate($_, $to);
+                    utf8::encode($result);
+                    say $result;
+                } else {
+                    croak "Not a default language.";
+                }
+            }
+        } else {
+            croak 'You must specify "direction" or "to" parameters.';
+        }
+    }
+}
+
+start();
+
+__END__
+
+=encoding utf-8
+
+=head1 NAME
+
+yatranslate - Translation using Yandex Transtlator Api
+
+=head1 SYNOPSIS
+
+yatranslate [options] phrase ...
+
+ Options:
+   -d, --direction=direction    Set default language direction. For example: -d="ru-en".
+   -t, --to=language            Set target language.
+   -l, --langs                  Print all supported language directions.
+   -v, --version                Print version.
+   -?, --help                   Print this message.
+
+ Examples:
+   yatranslate -t "en" Привет       #will return "Hi"
+
+   yatranslate -d "ru-en"           #will set default language direction
+   yatranslate Привет "Как дела?"   #will return "Hi" and "How are you doing?"
+   yatranslate Hi "I'm fine!"       #will return "Привет" and "Я в порядке"
+
+=cut
+
