@@ -27,12 +27,14 @@ use Const::Fast;
 use Getopt::Long qw(:config posix_default bundling no_ignore_case permute auto_help);
 use Carp;
 use File::Touch;
+use Encode;
+use Encode::Locale;
 
 use Lingua::Translate::Yandex;
 
 use 5.010;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 const my $settings_file => "Settings.ini";
 
@@ -64,6 +66,15 @@ sub getSettings {
     return %ini;
 }
 
+sub getTranslation {
+    my ($translator, $text, $to) = @_;
+    $text = encode(locale => $text);
+    utf8::decode($text);
+    my $result = $translator->translate($text, $to);
+    utf8::encode($result);
+    return decode(locale => $result);
+}
+
 sub start {
     my $to;
 
@@ -91,7 +102,7 @@ sub start {
 
     if (defined($to)) {
         foreach (@phrases) {
-            say $translator->translate($_, $to);
+            say getTranslation($translator, $_, $to);
         }
     } else {
         %settings = getSettings();
@@ -103,9 +114,7 @@ sub start {
                 if ($direction ~~ /$text_lang/) {
                     $to = $direction;
                     $to =~ s/\W*($text_lang)\W*//;
-                    my $result = $translator->translate($_, $to);
-                    utf8::encode($result);
-                    say $result;
+                    say getTranslation($translator, $_, $to);
                 } else {
                     croak "Not a default language.";
                 }

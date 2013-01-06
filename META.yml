@@ -21,7 +21,9 @@ requires:
   Carp: 0
   Config::IniFiles: 0
   Const::Fast: 0
+  Encode: 0
+  Encode::Locale: 0
   File::Touch: 0
   Getopt::Long: 0
-  Lingua::Translate::Yandex: 0
-version: 0.01
+  Lingua::Translate::Yandex: 0.03
+version: 0.02
